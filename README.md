@@ -10,3 +10,5 @@ from colorstring import Color
 print(Color('fish', frmt='italic', fg = 'red', bg = 'yellow'))
 
 ```
+
+But this would look proper in the terminal obviosly.
