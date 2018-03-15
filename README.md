@@ -1,4 +1,4 @@
-# ColorString
+# Color String
 
 Easily create colored strings that behave like str in Python 3.
 
