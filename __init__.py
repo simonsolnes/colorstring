@@ -1,4 +1,5 @@
 #!/usr/local/bin/python3
+
 colors = {color: idx for idx, color in enumerate([
     'black',
     'red',
@@ -9,6 +10,7 @@ colors = {color: idx for idx, color in enumerate([
     'cyan',
     'white',
     'normal',
+    'primary'
     ])}
 
 formats = {frmt: idx for idx, frmt in enumerate([
@@ -21,29 +23,44 @@ formats = {frmt: idx for idx, frmt in enumerate([
     'rapidblink',
     'negative',
     'conceal',
-    'crossedout',]) }
+    'crossedout',
+    'primary']) }
+
+ansi = 'ansi'
+rgb = 'rgb'
 
 class ColorPart():
 
     pre = '\x1b['
     post = '\x1b[0m'
 
-    def __init__(self, text = '', frmt = 'normal', fg = 'normal', bg = 'normal'):
+    def __init__(self, text = '', frmt = 'primary', fg = 'primary', bg = 'primary'):
         self.text = text
+
+        if isinstance(frmt, list):
+            for f in frmt[:-1]:
+                self.text = ColorPart(self.text, f)
+            self.frmt = frmt[-1]
+        else:
+            self.frmt = frmt
+
+        if isinstance(fg, tuple):
+            self.text = self.text
+            self.frmt = rgb
+
         self.fg = fg
+
         self.bg = bg
 
-        if not isinstance(frmt, list):
-            frmt = [frmt]
-        for f in frmt[:-1]:
-            self.text = ColorPart(self.text, f)
-        self.frmt = frmt[-1]
-
     def __str__(self):
-        fg = str(self.fg)
-        bg = str(self.bg)
-        frmt = str(self.frmt)
-        return self.pre + frmt + ';' + fg + ';' + bg + 'm' + str(self.text) + self.post
+        if self.frmt == rgb:
+            fg = ';'.join((str(i) for i in self.fg))
+            return self.pre + '38;2;' + fg + 'm' + str(self.text) + self.post
+        else:
+            fg = str(self.fg)
+            bg = str(self.bg)
+            frmt = str(self.frmt)
+            return self.pre + frmt + ';' + fg + ';' + bg + 'm' + str(self.text) + self.post
 
     @property
     def fg(self):
@@ -56,6 +73,9 @@ class ColorPart():
                 self._fg = x
             else:
                 self._fg = 30 + x
+        elif isinstance(x, tuple):
+            assert(all((i < 256 and i >= 0 for i in x)) and len(x) == 3)
+            self._fg = x
         else:
             assert(x in colors)
             self._fg = 30 + colors[x]
@@ -83,6 +103,8 @@ class ColorPart():
     def frmt(self, x):
         if isinstance(x, int):
             self._frmt = x
+        elif x == rgb:
+            self._frmt = rgb
         else:
             assert(x in formats)
             self._frmt = formats[x]
@@ -90,7 +112,9 @@ class ColorPart():
 
 
 class Color():
-    def __init__(self, text = '', frmt = 'normal', fg = 'normal', bg = 'normal'):
+    def __init__(self, text = '', frmt = 'primary', fg = 'primary', bg = 'primary'):
+        if isinstance(text, int):
+            text = str(text)
         self.parts = [ColorPart(text, frmt, fg, bg)]
         
     def separated(self):
@@ -138,6 +162,25 @@ class Color():
         ret.parts = [filtered] if not isinstance(filtered, list) else filtered
         ret.parts = ret.cohesed()
         return ret
+    def __hash__(self):
+        return hash(str(self))
+    def rjust(self, width, fillchar = ' '):
+        if len(self) >= width:
+            return self
+        return Color((width - len(self)) * fillchar) + self
+    def ljust(self, width, fillchar = ' '):
+        if len(self) >= width:
+            return self
+        return self + Color((width - len(self)) * fillchar)
+    def center(self, width, fillchar = ' '):
+        if len(self) >= width:
+            return self
+        pad = width - len(self)
+        right = left = int(pad / 2)
+        if pad % 2 != 0:
+            right += 1
+        return Color(left * fillchar) + self + Color(right * fillchar)
+
 
 def test():
 
@@ -155,6 +198,14 @@ def test():
         Color('fish', fg = 1),
         'several formats (not colors)',
         Color('fish', ['italic', 'bold', 'faint', 'underline'], 'red'),
+        'rgb',
+        Color('fish', fg = (0, 255, 0)),
+        'rgb2',
+        Color(Color('fish', fg = (0, 255, 0)), 'bold'),
+        'rgb3',
+        Color(Color('fish', 'bold'), fg = (255, 0, 0)),
+        'rgb4 this has a bug',
+        Color(Color('fish'), fg = (255, 0, 0)),
 
         # Features
         
@@ -171,7 +222,14 @@ def test():
         'nested strings',
         Color(Color('s')+ Color(Color('s') + Color('s'))),
         'length of nested strings works',
-        str(len(Color(Color('s')+ Color(Color(Color('ss', 'faint'), 'bold') + Color('s'), 'italic'))))
+        str(len(Color(Color('s')+ Color(Color(Color('ss', 'faint'), 'bold') + Color('s'), 'italic')))),
+
+        'rjust', 
+        Color('fish', frmt='italic', fg = 'red', bg = 'yellow').rjust(30),
+        'ljust', 
+        Color('fish', frmt='italic', fg = 'red', bg = 'yellow').ljust(30, '-'),
+        'center', 
+        Color('fi', frmt='italic', fg = 'red', bg = 'yellow').center(5, '-'),
 
     ]
 
